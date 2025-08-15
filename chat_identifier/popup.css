@@ -1,0 +1,380 @@
+/* popup.css - Futuristic Redesign */
+
+/* ===================================================================
+   1. THEME & COLOR VARIABLES
+   =================================================================== */
+:root {
+  /* Core Palette */
+  --color-dark-bg: #1a1a2e;
+  --color-dark-surface: #16213e;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #a0a0a0;
+  --color-accent-blue: #0f4c75; /* Base blue */
+  --color-accent-blue-light: #3282b8; /* Lighter blue for highlights */
+  --color-accent-green: #4CAF50; /* Success */
+  --color-accent-red: #f44336; /* Danger */
+  --color-border: #2c3e50;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+
+  /* Glowing Effects */
+  --glow-blue: 0 0 8px var(--color-accent-blue-light), 0 0 12px var(--color-accent-blue-light);
+  --glow-green: 0 0 8px var(--color-accent-green), 0 0 12px var(--color-accent-green);
+  --glow-red: 0 0 8px var(--color-accent-red), 0 0 12px var(--color-accent-red);
+
+  /* Spacing & Sizing */
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+}
+
+/* ===================================================================
+   2. GLOBAL & LAYOUT STYLES
+   =================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--color-dark-bg);
+  color: var(--color-text-primary);
+  width: 360px; /* Slightly wider for modern feel */
+  padding: var(--spacing-md);
+  overflow: hidden; /* Prevent scrollbars from glowing effects */
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  background-color: var(--color-dark-surface);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 5px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-md);
+}
+
+.app-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: var(--spacing-sm);
+}
+
+.app-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  flex-grow: 1;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.icon-button {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 1.2em;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover {
+  color: var(--color-accent-blue-light);
+  border-color: var(--color-accent-blue-light);
+  box-shadow: var(--glow-blue);
+}
+
+/* Status Message */
+.status-message {
+  display: none;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: 0.9em;
+  text-align: center;
+  color: #fff;
+  margin-bottom: var(--spacing-md);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.status-message.show {
+  opacity: 1;
+  display: block;
+}
+
+.status-message.info { background-color: var(--color-accent-blue); }
+.status-message.success { background-color: var(--color-accent-green); }
+.status-message.error { background-color: var(--color-accent-red); }
+
+/* Status Section */
+.status-section {
+  display: flex;
+  justify-content: space-around;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px dashed var(--color-border);
+  margin-bottom: var(--spacing-md);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.95em;
+}
+
+.status-label {
+  color: var(--color-text-secondary);
+}
+
+.status-indicator-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-text-secondary); /* Default grey */
+  box-shadow: 0 0 5px var(--color-text-secondary);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.status-indicator-dot.online {
+  background-color: var(--color-accent-green);
+  box-shadow: var(--glow-green);
+}
+
+.status-indicator-dot.offline {
+  background-color: var(--color-accent-red);
+  box-shadow: var(--glow-red);
+}
+
+/* Control Section */
+.control-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Two columns */
+  gap: var(--spacing-md);
+}
+
+.control-item {
+  background-color: var(--color-dark-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease-in-out;
+}
+
+.control-item:hover {
+  border-color: var(--color-accent-blue);
+  box-shadow: var(--glow-blue);
+}
+
+.control-label {
+  font-size: 1em;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex-grow: 1;
+}
+
+/* Toggle Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--color-border);
+  transition: .4s;
+  border-radius: 28px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: var(--color-text-primary);
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--color-accent-green);
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+  background-color: var(--color-dark-surface);
+}
+
+.switch.asr-switch input:checked + .slider {
+  background-color: var(--color-accent-blue-light);
+}
+
+/* Action Buttons */
+.action-control {
+  grid-column: span 2; /* Make action buttons span full width */
+  justify-content: center;
+  padding: var(--spacing-md);
+}
+
+.action-button {
+  background-color: var(--color-accent-red);
+  color: #fff;
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 1.1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  width: 100%;
+}
+
+.action-button:hover {
+  background-color: #e53935; /* Slightly darker red */
+  box-shadow: var(--glow-red);
+}
+
+.action-button:disabled {
+  background-color: var(--color-text-secondary);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Data Section */
+.data-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.stats-display {
+  display: flex;
+  justify-content: space-around;
+  background-color: var(--color-dark-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+}
+
+.stat-item span {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 1.1em;
+}
+
+.recent-message-container {
+  background-color: var(--color-dark-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.recent-label {
+  font-size: 0.85em;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.recent-message-content {
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  max-height: 100px; /* Limit height */
+  overflow-y: auto;
+  white-space: pre-wrap; /* Preserve formatting */
+  word-break: break-word;
+  background-color: rgba(0,0,0,0.1); /* Subtle background for content */
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent; /* For potential highlighting */
+}
+
+/* Specific styles for recent message roles */
+.recent-message-content.user {
+  border-left: 3px solid var(--color-accent-blue-light);
+  background-color: rgba(15, 76, 117, 0.2); /* Semi-transparent blue */
+}
+
+.recent-message-content.bot {
+  border-left: 3px solid var(--color-accent-red);
+  background-color: rgba(244, 67, 54, 0.2); /* Semi-transparent red */
+}
+
+.recent-message-content.error, .recent-message-content.loading {
+  border-left: 3px solid var(--color-text-secondary);
+  background-color: rgba(160, 160, 160, 0.1);
+  text-align: center;
+}
+
+/* Retry button in error state */
+.recent-message-content button {
+  background-color: var(--color-accent-blue);
+  color: #fff;
+  border: none;
+  padding: 8px 15px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-top: var(--spacing-sm);
+  transition: background-color 0.2s ease;
+}
+
+.recent-message-content button:hover {
+  background-color: var(--color-accent-blue-light);
+}

@@ -1,0 +1,45 @@
+{
+  "commands": [
+    {
+      "phrase": "slap",
+      "action": {
+        "type": "key_press",
+        "key": "Key.enter"
+      }
+    },
+    {
+      "phrase": "slap back",
+      "action": [
+        {
+          "type": "key_combo",
+          "keys": ["Key.ctrl_l", "a"]
+        },
+        {
+          "type": "key_press",
+          "key": "Key.backspace"
+        }
+      ]
+    },
+    {
+      "phrase": "control alt shift a",
+      "action": {
+        "type": "key_combo",
+        "keys": ["Key.ctrl_l", "Key.alt_l", "Key.shift_l", "a"]
+      }
+    },
+    {
+      "phrase": "control v",
+      "action": {
+        "type": "key_combo",
+        "keys": ["Key.ctrl_l", "v"]
+      }
+    },
+    {
+      "phrase": "alt tab",
+      "action": {
+        "type": "key_combo",
+        "keys": ["Key.alt_l", "Key.tab"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Voice Gateway Logs</title>
+    <link rel="stylesheet" href="logs.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <img src="icons/icon48.png" alt="Voice Gateway Icon" class="app-icon">
+            <h1 class="app-title">Event Logs</h1>
+            <div class="header-actions">
+                <a href="popup.html" target="_blank" title="Back to Popup" class="icon-button settings-button">🏠</a>
+                <a href="options.html" target="_blank" title="Settings" class="icon-button logs-button">⚙️</a>
+            </div>
+        </header>
+
+        <div id="status-message" class="status-message" aria-live="polite"></div>
+
+        <section class="control-section">
+            <div class="log-controls-grid">
+                <input type="text" id="filter-input" placeholder="Filter logs..." class="log-filter-input">
+                <select id="filter-status-select" class="log-filter-select">
+                    <option value="all">All Statuses</option>
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="error">Error</option>
+                </select>
+                <select id="filter-level-select" class="log-filter-select">
+                    <option value="0">DEBUG</option>
+                    <option value="1" selected>INFO</option>
+                    <option value="2">WARN</option>
+                    <option value="3">ERROR</option>
+                    <option value="4">CRITICAL</option>
+                </select>
+                <button id="refresh-logs-button" class="action-button small-button">Refresh</button>
+                <button id="clear-logs-button" class="action-button small-button secondary-button">Clear Logs</button>
+                <button id="download-logs-button" class="action-button small-button">Download Logs</button>
+            </div>
+        </section>
+
+        <section class="log-table-section">
+            <table id="log-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Time</th>
+                        <th style="width: 90px;">Source</th>
+                        <th style="width: 120px;">Event</th>
+                        <th>Details</th>
+                        <th style="width: 70px;">Status</th>
+                        <th style="width: 90px;">Trigger ID</th>
+                    </tr>
+                </thead>
+                <tbody id="log-body">
+                    <!-- Log entries will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </section>
+    </div>
+    <script src="logs.js"></script>
+</body>
+</html>

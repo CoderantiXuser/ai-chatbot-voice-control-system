@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Voice Gateway Control</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <img src="icons/icon48.png" alt="Voice Gateway Icon" class="app-icon">
+      <h1 class="app-title">Voice Gateway</h1>
+      <div class="header-actions">
+        <a href="#" id="options-link" title="Settings" class="icon-button settings-button">⚙️</a>
+        <a href="#" id="logs-link" title="Logs" class="icon-button logs-button">📜</a>
+      </div>
+    </header>
+
+    <div id="status-message" class="status-message" aria-live="polite"></div>
+
+    <section class="status-section">
+      <div class="status-item">
+        <span class="status-label">Gateway:</span>
+        <div class="status-indicator-dot" id="gateway-status-indicator"></div>
+        <span class="status-text" id="gateway-status-text">Connecting...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">ASR:</span>
+        <div class="status-indicator-dot" id="asr-status-indicator"></div>
+        <span class="status-text" id="asr-status-text">Offline</span>
+      </div>
+    </section>
+
+    <section class="control-section">
+      <div class="control-grid">
+
+        <div class="control-item toggle-control">
+          <label for="analyzer-toggle" class="control-label">Analyzer</label>
+          <label class="switch" role="switch" aria-checked="false">
+            <input type="checkbox" id="analyzer-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-item toggle-control">
+          <label for="tts-toggle" class="control-label">Auto-Speak</label>
+          <label class="switch" role="switch" aria-checked="false">
+            <input type="checkbox" id="tts-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="control-item action-control">
+          <button id="kill-speech-button" class="action-button kill-button" title="Stop current speech">STOP TTS</button>
+        </div>
+
+        <div class="control-item toggle-control">
+          <label for="asr-toggle" class="control-label">Listen</label>
+          <label class="switch asr-switch" role="switch" aria-checked="false">
+            <input type="checkbox" id="asr-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="data-section">
+      <div class="stats-display" id="stats">
+        <div class="stat-item">👤 <span id="user-count">0</span></div>
+        <div class="stat-item">🤖 <span id="bot-count">0</span></div>
+        <div class="stat-item">∑ <span id="total-count">0</span></div>
+      </div>
+
+      <div class="recent-message-container">
+        <span class="recent-label">Last Bot Message:</span>
+        <div id="recent-message" class="recent-message-content"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

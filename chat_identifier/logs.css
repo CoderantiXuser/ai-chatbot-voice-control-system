@@ -1,0 +1,257 @@
+/* logs.css - Futuristic Redesign */
+
+/* ===================================================================
+   1. THEME & COLOR VARIABLES (from popup.css, for consistency)
+   =================================================================== */
+:root {
+  /* Core Palette */
+  --color-dark-bg: #1a1a2e;
+  --color-dark-surface: #16213e;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #a0a0a0;
+  --color-accent-blue: #0f4c75; /* Base blue */
+  --color-accent-blue-light: #3282b8; /* Lighter blue for highlights */
+  --color-accent-green: #4CAF50; /* Success */
+  --color-accent-red: #f44336; /* Danger */
+  --color-border: #2c3e50;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+
+  /* Glowing Effects */
+  --glow-blue: 0 0 8px var(--color-accent-blue-light), 0 0 12px var(--color-accent-blue-light);
+  --glow-green: 0 0 8px var(--color-accent-green), 0 0 12px var(--color-accent-green);
+  --glow-red: 0 0 8px var(--color-accent-red), 0 0 12px var(--color-accent-red);
+
+  /* Spacing & Sizing */
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+}
+
+/* ===================================================================
+   2. GLOBAL & LAYOUT STYLES
+   =================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--color-dark-bg);
+  color: var(--color-text-primary);
+  padding: var(--spacing-md);
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  background-color: var(--color-dark-surface);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 5px 20px var(--color-shadow);
+  border: 1px solid var(--color-border);
+  position: relative;
+  max-width: 1000px; /* Wider for logs table */
+  margin: var(--spacing-md) auto; /* Center the container */
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-md);
+}
+
+.app-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: var(--spacing-sm);
+}
+
+.app-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  flex-grow: 1;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.icon-button {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 1.2em;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover {
+  color: var(--color-accent-blue-light);
+  border-color: var(--color-accent-blue-light);
+  box-shadow: var(--glow-blue);
+}
+
+/* Status Message */
+.status-message {
+  display: none;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: 0.9em;
+  text-align: center;
+  color: #fff;
+  margin-bottom: var(--spacing-md);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.status-message.show {
+  opacity: 1;
+  display: block;
+}
+
+.status-message.info { background-color: var(--color-accent-blue); }
+.status-message.success { background-color: var(--color-accent-green); }
+.status-message.error { background-color: var(--color-accent-red); }
+
+/* Control Section (for filters and buttons) */
+.control-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.log-controls-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto auto; /* Filter input, status select, refresh, clear */
+  gap: var(--spacing-md);
+  align-items: center;
+}
+
+.log-filter-input,
+.log-filter-select {
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-dark-bg);
+  color: var(--color-text-primary);
+  font-size: 0.9em;
+}
+
+/* Action Buttons */
+.action-button {
+  background-color: var(--color-accent-blue); /* Darker blue */
+  color: #fff;
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: 10px 20px;
+  font-size: 0.95em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  white-space: nowrap;
+}
+
+.action-button.small-button {
+  padding: 8px 15px;
+  font-size: 0.85em;
+  border-radius: var(--border-radius-sm);
+}
+
+.action-button.secondary-button {
+  background-color: var(--color-text-secondary);
+}
+
+.action-button:hover {
+  background-color: var(--color-accent-blue-light);
+  box-shadow: var(--glow-blue);
+}
+
+.action-button.secondary-button:hover {
+  background-color: #707070; /* Darker grey */
+  box-shadow: none;
+}
+
+.action-button:disabled {
+  background-color: var(--color-text-secondary);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Log Table Section */
+.log-table-section {
+  background-color: var(--color-dark-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  overflow: hidden; /* Ensures rounded corners for table */
+}
+
+#log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#log-table th,
+#log-table td {
+  border: 1px solid var(--color-border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+#log-table th {
+  background-color: var(--color-dark-surface);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  position: sticky;
+  top: 0;
+  z-index: 1; /* Keep headers on top when scrolling */
+}
+
+#log-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.1); /* Subtle stripe effect */
+}
+
+#log-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.2); /* Hover effect */
+}
+
+.status-cell-error {
+  color: var(--color-accent-red);
+  font-weight: bold;
+}
+
+.status-cell-success {
+  color: var(--color-accent-green);
+}
+
+.status-cell-info {
+  color: var(--color-accent-blue-light);
+}
+
+/* Responsive adjustments for log controls */
+@media (max-width: 768px) {
+  .log-controls-grid {
+    grid-template-columns: 1fr; /* Stack controls on smaller screens */
+  }
+}
