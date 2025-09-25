@@ -10,9 +10,7 @@
     ERROR: 'error'
   };
   let isInitialScan = true;
-  let asrPollingInterval = null;
-  const ASR_POLLING_INTERVAL_MS = 500; // Poll every 500ms
-  const GATEWAY_URL = 'http://127.0.0.1:5000';
+  // ASR polling is now handled by the background script via WebSockets.
 
   const SITE_CONFIG = {
     // IMPORTANT: Keep these selectors updated as website structures may change.
@@ -265,174 +263,25 @@ async function sendToTTSGateway(processedText, messageRole) {
     }
   }
 
-  async function startAsrPolling() {
-    if (asrPollingInterval) {
-      clearInterval(asrPollingInterval);
-    }
-    asrPollingInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`${GATEWAY_URL}/api/asr/results`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const results = await response.json();
-        if (results && results.length > 0) {
-          results.forEach(text => {
-            insertTextAtCursor(text + " "); // Add a space after insertion
-            logEvent('ASR Input', `Inserted: "${text}"`, 'Success', 'asr_text_inserted', {}, LOG_LEVELS.INFO);
-          });
-        }
-      } catch (error) {
-        logEvent('ASR Polling', `Error fetching ASR results: ${error.message}`, 'Error', 'asr_polling_error', { errorMessage: error.message }, LOG_LEVELS.ERROR);
-      }
-    }, ASR_POLLING_INTERVAL_MS);
-    logEvent('ASR Polling', 'Started ASR polling.', 'Info', 'asr_polling_started', {}, LOG_LEVELS.INFO);
-  }
-
-  function stopAsrPolling() {
-    if (asrPollingInterval) {
-      clearInterval(asrPollingInterval);
-      asrPollingInterval = null;
-      logEvent('ASR Polling', 'Stopped ASR polling.', 'Info', 'asr_polling_stopped', {}, LOG_LEVELS.INFO);
-    }
-  }
+  // ASR control is now managed by the background script.
+  // The content script just receives the final text.
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'ping') {
-      sendResponse({ status: 'ready' });
-      return true; // Indicates an asynchronous response.
-    }
-    if (message.action === 'getData') {
-      sendResponse(state);
-      return true; // Indicates an asynchronous response.
-    }
-    if (message.action === 'ttsRequest') {
-      handleTtsRequest(message.payload, sendResponse);
-      return true; // Indicates an asynchronous response.
-    }
-    if (message.action === 'logEvent') {
-      logEvent(message.payload);
-      // No response is sent, and logEvent is now synchronous (it just queues the work),
-      // so `return true` is not strictly necessary but doesn't hurt.
-      // The async processing is now safely decoupled.
-    }
-    if (message.action === 'stateUpdate') {
-      // Store the recent message for options page preview
-      chrome.storage.local.set({ lastBotMessageForPreview: message.data.recentMessage });
-    } else if (message.action === 'openLogsPage') {
-      chrome.tabs.query({ url: chrome.runtime.getURL('logs.html') }, (tabs) => {
-        if (tabs.length > 0) {
-          chrome.tabs.update(tabs[0].id, { active: true });
-        } else {
-          chrome.tabs.create({ url: chrome.runtime.getURL('logs.html') });
+    switch (message.action) {
+      case 'ping':
+        sendResponse({ status: 'ready' });
+        break;
+      case 'getData':
+        sendResponse(state);
+        break;
+      case 'asr_result_push':
+        if (message.text) {
+          insertTextAtCursor(message.text + " "); // Add a space after insertion
+          logEvent('ASR Input', `Inserted via WebSocket: "${message.text}"`, 'Success', 'asr_text_inserted_ws', {}, LOG_LEVELS.INFO);
         }
-      });
-    } else if (message.action === 'openOptionsPage') {
-      chrome.runtime.openOptionsPage();
-    } else if (message.action === 'openPopupPage') {
-      // For popup, we just close the current window, and the user can click the extension icon again.
-      // Or, if it's a tab, navigate to it.
-      chrome.tabs.query({ url: chrome.runtime.getURL('popup.html') }, (tabs) => {
-        if (tabs.length > 0) {
-          chrome.tabs.update(tabs[0].id, { active: true });
-        } else {
-          // If popup is not open as a tab, do nothing, as it's a browser action popup.
-          // The user will click the extension icon to open it.
-        }
-      });
-    } else if (message.action === 'startAsrPolling') {
-      startAsrPolling();
-    } else if (message.action === 'stopAsrPolling') {
-      stopAsrPolling();
+        break;
     }
+    return true; // Indicates that the response may be sent asynchronously.
   });
-  
-  
-
-  function insertTextAtCursor(text) {
-    const activeElement = document.activeElement;
-    if (!activeElement) return;
-
-    // Check if the active element is an input field or a textarea
-    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-      const start = activeElement.selectionStart;
-      const end = activeElement.selectionEnd;
-      const value = activeElement.value;
-
-      activeElement.value = value.substring(0, start) + text + value.substring(end);
-      activeElement.selectionStart = activeElement.selectionEnd = start + text.length;
-
-      // Dispatch input event to trigger any frameworks listening for changes
-      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-    } else if (activeElement.isContentEditable) {
-      // For contenteditable elements (like some chat inputs)
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(document.createTextNode(text));
-        selection.collapseToEnd();
-      }
-    }
-  }
-
-  async function startAsrPolling() {
-    if (asrPollingInterval) {
-      clearInterval(asrPollingInterval);
-    }
-    asrPollingInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`${GATEWAY_URL}/api/asr/results`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const results = await response.json();
-        if (results && results.length > 0) {
-          results.forEach(text => {
-            insertTextAtCursor(text + " "); // Add a space after insertion
-            logEvent('ASR Input', `Inserted: "${text}"`, 'Success', 'asr_text_inserted', {}, LOG_LEVELS.INFO);
-          });
-        }
-      } catch (error) {
-        logEvent('ASR Polling', `Error fetching ASR results: ${error.message}`, 'Error', 'asr_polling_error', { errorMessage: error.message }, LOG_LEVELS.ERROR);
-      }
-    }, ASR_POLLING_INTERVAL_MS);
-    logEvent('ASR Polling', 'Started ASR polling.', 'Info', 'asr_polling_started', {}, LOG_LEVELS.INFO);
-  }
-
-  function stopAsrPolling() {
-    if (asrPollingInterval) {
-      clearInterval(asrPollingInterval);
-      asrPollingInterval = null;
-      logEvent('ASR Polling', 'Stopped ASR polling.', 'Info', 'asr_polling_stopped', {}, LOG_LEVELS.INFO);
-    }
-  }
-
-  function insertTextAtCursor(text) {
-    const activeElement = document.activeElement;
-    if (!activeElement) return;
-
-    // Check if the active element is an input field or a textarea
-    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-      const start = activeElement.selectionStart;
-      const end = activeElement.selectionEnd;
-      const value = activeElement.value;
-
-      activeElement.value = value.substring(0, start) + text + value.substring(end);
-      activeElement.selectionStart = activeElement.selectionEnd = start + text.length;
-
-      // Dispatch input event to trigger any frameworks listening for changes
-      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-    } else if (activeElement.isContentEditable) {
-      // For contenteditable elements (like some chat inputs)
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(document.createTextNode(text));
-        selection.collapseToEnd();
-      }
-    }
-  }
 
   function logEvent(event, details, status, triggerId = 'N/A', fullData = {}, level = LOG_LEVELS.INFO) {
      chrome.runtime.sendMessage({

@@ -348,6 +348,8 @@ class VoiceGateway:
                     if text:
                         self.log_event("ASR Recognition", f"Recognized: '{text}'", "Info", level="INFO", full_data={"text": text})
                         self.asr_results_queue.append(text)
+                        # --- Push result directly to clients ---
+                        self.socketio.emit('asr_result', {'text': text})
         except Exception as e:
             self.log_event("ASR Error", f"An error occurred in the ASR thread: {e}", "Error", level="CRITICAL", full_data={"error": str(e)})
         finally:

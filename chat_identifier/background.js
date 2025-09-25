@@ -2,9 +2,60 @@
 
 const GATEWAY_URL = 'http://127.0.0.1:5000';
 
-// Dynamically import Socket.IO client library
-// Socket.IO import removed due to Manifest V3 CSP. If needed, bundle locally.
-// const socket = io(GATEWAY_URL);
+// Import the local Socket.IO client library
+try {
+  importScripts('lib/socket.io.min.js');
+} catch (e) {
+  console.error(e);
+}
+
+// Establish a connection to the gateway server
+const socket = io(GATEWAY_URL, {
+  // Recommended options for Chrome extensions
+  transports: ['websocket'],
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+});
+
+socket.on('connect', () => {
+  logEvent({ source: 'background.js', event: 'Socket.IO', details: 'Connected to gateway.', status: 'Info', triggerId: 'socket_connect', level: LOG_LEVELS.INFO });
+});
+
+socket.on('disconnect', (reason) => {
+  logEvent({ source: 'background.js', event: 'Socket.IO', details: `Disconnected from gateway: ${reason}`, status: 'Warn', triggerId: 'socket_disconnect', level: LOG_LEVELS.WARN });
+});
+
+socket.on('connect_error', (error) => {
+  logEvent({ source: 'background.js', event: 'Socket.IO', details: `Connection error: ${error.message}`, status: 'Error', triggerId: 'socket_connect_error', level: LOG_LEVELS.ERROR });
+});
+
+// Listen for real-time ASR results from the gateway
+socket.on('asr_result', (data) => {
+  if (data && data.text) {
+    // Find the active tab in the current window and send the ASR text to it.
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'asr_result_push',
+          text: data.text
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            // This can happen if the content script is not ready or has been unloaded.
+            // We log this as a warning because it's not a critical failure of the extension.
+            logEvent({
+              source: 'background.js',
+              event: 'ASR Push',
+              details: `Could not send ASR result to tab ${tabs[0].id}: ${chrome.runtime.lastError.message}`,
+              status: 'Warn',
+              triggerId: 'asr_push_error',
+              level: LOG_LEVELS.WARN
+            });
+          }
+        });
+      }
+    });
+  }
+});
 
 // --- LOGGING LEVELS ---
 const LOG_LEVELS = {
