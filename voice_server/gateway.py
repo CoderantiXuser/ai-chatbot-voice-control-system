@@ -62,6 +62,9 @@ class VoiceGateway:
         self.log_history = deque(maxlen=self.CONFIG['LOG_HISTORY_MAXLEN'])
         self.asr_results_queue = deque(maxlen=self.CONFIG['ASR_RESULTS_MAXLEN'])
 
+        # --- Reverse Log Level Mapping for Handlers ---
+        self.LEVEL_NAMES_BY_VALUE = {v: k for k, v in self.CONFIG['LOG_LEVELS'].items()}
+
         # --- App Setup ---
         self.app = Flask(__name__, static_folder='static', template_folder='templates')
         self.app.config['SECRET_KEY'] = os.urandom(24)
@@ -147,20 +150,35 @@ class VoiceGateway:
         
         @self.socketio.on('extension_log')
         def handle_extension_log(log_entry):
+            """Handles log entries from the browser extension."""
+            numeric_level = log_entry.get('level', 1)  # Default to INFO
+
+            # Convert numeric level from extension to string representation for log_event
+            level_str = self.LEVEL_NAMES_BY_VALUE.get(numeric_level, 'INFO')
+
             log_entry['source'] = log_entry.get('source', 'extension')
             self.log_event(
                 event=log_entry.get('event', 'Unknown Event'),
                 details=log_entry.get('details', 'No details provided.'),
                 status=log_entry.get('status', 'Info'),
                 trigger_id=log_entry.get('triggerId', 'N/A'),
-                level=log_entry.get('level', 'INFO'),
+                level=level_str,  # Pass the converted string level
                 full_data=log_entry.get('fullData', {})
             )
 
     def log_event(self, event: str, details: str, status: str, trigger_id: str = 'N/A', level: str = 'INFO', full_data: dict = None):
         """The core logging function. Formats, prints, adds to history, and pushes to clients."""
         timestamp = datetime.now().isoformat() + 'Z'
-        level_upper = level.upper()
+
+        # --- Robustness: Handle both string and numeric levels ---
+        if isinstance(level, int):
+            # If level is an int, convert it to its string name; default to 'INFO'
+            level_str = self.LEVEL_NAMES_BY_VALUE.get(level, 'INFO')
+        else:
+            # Otherwise, assume it's a string and uppercase it
+            level_str = level.upper()
+
+        level_upper = level_str
         log_entry = {
             'timestamp': timestamp,
             'source': 'gateway.py',
