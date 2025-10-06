@@ -6,10 +6,13 @@ This document outlines the key areas for improvement and bug fixes for the Voice
 
 ### 1.1. Fix "Play in Browser" TTS Functionality
 - **Issue:** The `Play in Browser` feature is non-functional. The background script expects the gateway to return audio data, but the `gateway.py` server is only designed to play audio on its own local output (`pacat`).
-- **Task:**
+- **Task:** **DONE**
     - Refactor the `speak_text` function in `voice_server/gateway.py`.
     - Instead of piping the `piper` audio stream to `pacat`, capture the raw audio data.
     - Return this audio data in the body of the Flask response so the background script can process it.
+- **Verification:**
+    - In the extension's options, enable the "Play audio directly in the browser" setting.
+    - When a chatbot replies, the audio should play from the browser, not from the server's speakers.
 
 ## 2. Major Feature: Real-time, Conversational TTS
 

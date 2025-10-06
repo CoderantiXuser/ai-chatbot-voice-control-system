@@ -72,6 +72,37 @@ class TestGateway(unittest.TestCase):
         self.assertEqual(processed_log['event'], 'Extension Event Test')
         self.assertEqual(processed_log['level'], 2, "The numeric level from the extension should be correctly stored.")
 
+    def test_tts_api_returns_audio_data(self):
+        """
+        Tests if the /api/tts endpoint correctly returns audio data.
+        """
+        # 1. Mock the speak_text function to avoid actual TTS generation
+        #    and to control its output for the test.
+        mock_audio_data = b'\x01\x02\x03\x04'
+        self.gateway.speak_text = MagicMock(return_value=(mock_audio_data, None))
+
+        # 2. Use the Flask test client to simulate a request.
+        with self.gateway.app.test_client() as client:
+            response = client.post(
+                '/api/tts',
+                json={
+                    'text': 'Hello, world!',
+                    'model': 'en_US-lessac-medium.onnx' # A dummy model path
+                }
+            )
+
+            # 3. Assertions to verify the response.
+            self.assertEqual(response.status_code, 200, "Response status code should be 200 OK.")
+            # We check the raw 'Content-Type' header directly, as `response.mimetype` strips parameters.
+            self.assertEqual(response.headers['Content-Type'], "audio/l16; rate=22050; channels=1", "Content-Type header should be precise.")
+            self.assertEqual(response.data, mock_audio_data, "Response data should match the mocked audio data.")
+
+            # 4. Verify that the mocked function was called correctly.
+            self.gateway.speak_text.assert_called_once_with(
+                text='Hello, world!',
+                model='en_US-lessac-medium.onnx'
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

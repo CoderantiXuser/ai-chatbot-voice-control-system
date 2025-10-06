@@ -7,7 +7,7 @@ import subprocess
 import logging
 from datetime import datetime
 from collections import deque
-from flask import Flask, request, jsonify, render_template, Blueprint
+from flask import Flask, request, jsonify, render_template, Blueprint, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
@@ -95,8 +95,15 @@ class VoiceGateway:
         @api_blueprint.route('/tts', methods=['POST'])
         def handle_tts_request():
             data = request.json
-            threading.Thread(target=self.speak_text, kwargs=data).start()
-            return jsonify({"status": "ok", "message": "TTS request received."})
+            audio_data, error = self.speak_text(**data)
+
+            if error:
+                self.log_event("TTS API Error", error, "Error", level="ERROR")
+                return jsonify({"status": "error", "message": error}), 500
+
+            # The mimetype should ideally match the output format from piper.
+            # Assuming s16le format at 22050 Hz, which is a common piper default.
+            return Response(audio_data, content_type="audio/l16; rate=22050; channels=1")
 
         @api_blueprint.route('/tts/stop', methods=['POST'])
         def handle_tts_stop():
@@ -255,49 +262,62 @@ class VoiceGateway:
             self.log_event("ASR Commands", f"Error loading commands: {e}", "Error", level="ERROR", full_data={"error": str(e)})
 
     def speak_text(self, text: str, model: str, speaker_id: int = None, **kwargs):
-        """Handles the TTS process execution."""
+        """
+        Generates speech from text using the Piper TTS engine and returns the raw audio data.
+        Returns a tuple of (audio_data, error_message).
+        """
         if not text:
-            return self.log_event("TTS Request", "Empty text received, skipping.", "Warning", level="WARN")
+            error_msg = "Empty text received, skipping TTS generation."
+            self.log_event("TTS Request", error_msg, "Warning", level="WARN")
+            return None, error_msg
+
         if not model or not os.path.exists(model):
-            return self.log_event("TTS Request", f"Piper model not found: {model}", "Error", level="ERROR", full_data={"model_path": model})
+            error_msg = f"Piper model not found: {model}"
+            self.log_event("TTS Request", error_msg, "Error", level="ERROR", full_data={"model_path": model})
+            return None, error_msg
 
         with self.tts_process_lock:
-            if self.current_tts_process and self.current_tts_process.poll() is None:
-                self.log_event("TTS Control", "Terminating previous TTS process.", "Info", level="INFO")
-                self.current_tts_process.terminate()
-                self.current_tts_process.wait()
-
             try:
-                self.log_event("TTS Request", f"Starting TTS for '{text[:50]}...'", "Info", level="INFO", full_data={"model": os.path.basename(model), "speaker_id": speaker_id})
+                self.log_event("TTS Generation", f"Starting TTS for '{text[:50]}...'", "Info", level="INFO", full_data={"model": os.path.basename(model), "speaker_id": speaker_id})
+
+                piper_command = ["piper", "--model", model, "--output-raw"]
+                if speaker_id is not None:
+                    piper_command.extend(["--speaker", str(speaker_id)])
                 
-                piper_command = ["piper", "--model", model, "--output-raw", "-"]
-                if speaker_id is not None: piper_command.extend(["--speaker", str(speaker_id)])
                 for key, value in kwargs.items():
                     if value is not None and key not in ['text', 'model', 'speaker_id']:
-                        piper_command.extend([f"--{key.replace('_', '-')}", str(value)])
+                        kebab_key = key.replace('_', '-')
+                        piper_command.extend([f"--{kebab_key}", str(value)])
 
-                piper_process = subprocess.Popen(piper_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                self.current_tts_process = subprocess.Popen(["pacat", "--rate=22050", "--format=s16le", "--channels=1"], stdin=piper_process.stdout, stderr=subprocess.PIPE)
+                piper_process = subprocess.Popen(
+                    piper_command,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+
+                audio_data, stderr_data = piper_process.communicate(input=text.encode('utf-8'))
+
+                if piper_process.returncode != 0:
+                    error_msg = f"Piper process exited with code {piper_process.returncode}: {stderr_data.decode().strip()}"
+                    self.log_event("TTS Error", error_msg, "Error", level="ERROR", full_data={"error": stderr_data.decode()})
+                    return None, error_msg
                 
-                _, stderr = piper_process.communicate(input=text.encode('utf-8'))
-                if stderr:
-                    self.log_event("TTS Warning", f"Piper process stderr: {stderr.decode()}", "Warn", level="WARN")
+                if stderr_data:
+                    self.log_event("TTS Warning", f"Piper process stderr: {stderr_data.decode().strip()}", "Warn", level="WARN")
+
+                self.log_event("TTS Generation", f"Successfully generated {len(audio_data)} bytes of audio data.", "Success", level="INFO")
+                return audio_data, None
 
             except Exception as e:
-                self.log_event("TTS Error", f"Failed to execute Piper command: {e}", "Error", level="ERROR", full_data={"error": str(e)})
+                error_msg = f"An exception occurred during TTS generation: {e}"
+                self.log_event("TTS Error", error_msg, "Error", level="CRITICAL", full_data={"error": str(e)})
+                return None, error_msg
 
     def stop_tts(self):
-        """Stops the currently running TTS process."""
-        self.log_event("TTS Control", "TTS stop request received.", "Info", level="ACTION")
-        with self.tts_process_lock:
-            if self.current_tts_process and self.current_tts_process.poll() is None:
-                self.current_tts_process.terminate()
-                self.current_tts_process.wait()
-                self.current_tts_process = None
-                self.log_event("TTS Control", "TTS process stopped.", "Success", level="SUCCESS")
-                return jsonify({"status": "ok", "message": "TTS stopped."})
-        self.log_event("TTS Control", "No active TTS process to stop.", "Warning", level="WARN")
-        return jsonify({"status": "warning", "message": "No active TTS process to stop."})
+        """Stops the currently running TTS process. (Now deprecated)"""
+        self.log_event("TTS Control", "Stop request received but is no longer applicable in this server mode.", "Warning", level="WARN")
+        return jsonify({"status": "warning", "message": "TTS stop functionality is not applicable in the current server mode."})
 
     def start_asr(self, model_path: str):
         """Starts the ASR listening thread."""

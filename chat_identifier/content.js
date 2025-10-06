@@ -279,6 +279,12 @@ async function sendToTTSGateway(processedText, messageRole) {
           logEvent('ASR Input', `Inserted via WebSocket: "${message.text}"`, 'Success', 'asr_text_inserted_ws', {}, LOG_LEVELS.INFO);
         }
         break;
+      case 'startAsrPolling': // Kept for legacy compatibility if needed, though now unused.
+        // startAsrPolling();
+        break;
+      case 'stopAsrPolling': // Kept for legacy compatibility if needed, though now unused.
+        // stopAsrPolling();
+        break;
     }
     return true; // Indicates that the response may be sent asynchronously.
   });
