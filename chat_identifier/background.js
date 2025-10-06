@@ -250,11 +250,61 @@ async function handleTtsRequest(payload, sendResponse) {
   processTtsQueue();
 }
 
+function playAudioCue(sound) {
+  // This function plays pre-defined audio cues.
+  // NOTE: The actual audio files (e.g., 'thinking.mp3', 'error.mp3') are not
+  // included in this repository and must be added to the 'assets' directory for this feature to work.
+  const soundFile = `assets/${sound}.mp3`;
+  const audioUrl = chrome.runtime.getURL(soundFile);
+
+  // Check if the file exists before trying to play it to avoid console errors.
+  fetch(audioUrl)
+    .then(response => {
+      if (response.ok) {
+        const audio = new Audio(audioUrl);
+        audio.play().catch(e => {
+          logEvent({
+            source: 'background.js',
+            event: 'Audio Cue',
+            details: `Failed to play sound ${sound}: ${e.message}`,
+            status: 'Error',
+            triggerId: `playAudioCue_error_${sound}`,
+            level: LOG_LEVELS.ERROR
+          });
+        });
+      } else {
+        // This will happen if the .mp3 files are missing. Log a warning instead of crashing.
+        logEvent({
+          source: 'background.js',
+          event: 'Audio Cue',
+          details: `Audio file not found: ${soundFile}. This is a non-critical error.`,
+          status: 'Warn',
+          triggerId: `playAudioCue_missing_${sound}`,
+          level: LOG_LEVELS.WARN
+        });
+      }
+    }).catch(e => {
+      // Catch potential network errors if the extension context is invalidated.
+      logEvent({
+        source: 'background.js',
+        event: 'Audio Cue',
+        details: `Failed to fetch audio cue ${soundFile}: ${e.message}`,
+        status: 'Warn',
+        triggerId: `playAudioCue_fetch_error_${sound}`,
+        level: LOG_LEVELS.WARN
+      });
+    });
+}
+
+
 // --- EVENT LISTENERS ---
 
 // Listener for all incoming messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'ttsRequest') {
+  if (message.action === 'play_audio_cue') {
+    playAudioCue(message.sound);
+    // No response needed, so we don't return true.
+  } else if (message.action === 'ttsRequest') {
     handleTtsRequest(message.payload, sendResponse);
     return true; // Indicates an asynchronous response.
   }

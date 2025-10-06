@@ -1,61 +1,57 @@
 # Project TODO and Refinement Plan
 
-This document outlines the key areas for improvement and bug fixes for the Voice Gateway Controller extension, based on a detailed analysis of its current architecture.
+This document outlines the key features and manual verification steps for the Voice Gateway Controller extension, focusing on the real-time, conversational TTS implementation.
 
-## 1. Critical Bug Fixes
+## 1. Core Features Implemented
 
-### 1.1. Fix "Play in Browser" TTS Functionality
-- **Issue:** The `Play in Browser` feature is non-functional. The background script expects the gateway to return audio data, but the `gateway.py` server is only designed to play audio on its own local output (`pacat`).
-- **Task:** **DONE**
-    - Refactor the `speak_text` function in `voice_server/gateway.py`.
-    - Instead of piping the `piper` audio stream to `pacat`, capture the raw audio data.
-    - Return this audio data in the body of the Flask response so the background script can process it.
-- **Verification:**
-    - In the extension's options, enable the "Play audio directly in the browser" setting.
-    - When a chatbot replies, the audio should play from the browser, not from the server's speakers.
+*   **Real-time, Conversational TTS:** The TTS system has been refactored to handle streaming responses from chatbots. It now buffers text as it appears on screen and speaks it sentence by sentence, creating a more natural conversational flow.
+*   **DOM-Aware Sanitation:** The system now intelligently ignores unreadable content. It uses a configurable list of CSS selectors (`ttsExcludeSelectors`) to identify and filter out code blocks, UI buttons, and other non-textual elements before they are sent to the TTS engine.
+*   **Advanced State Identification:** The extension now provides audio feedback for the entire lifecycle of a chatbot interaction:
+    *   **Thinking:** Plays a non-intrusive audio cue when the chatbot is processing a request.
+    *   **Error:** Plays a distinct audio alert when the chatbot fails to generate a response.
+*   **WebSocket-based ASR:** The ASR system has been modernized to use WebSockets, providing faster and more efficient transcription.
+*   **"Play in Browser" Fixed:** The server now correctly sends audio data to the client, allowing TTS to be played directly in the browser.
 
-## 2. Major Feature: Real-time, Conversational TTS
+## 2. Manual Verification Plan
 
-The current TTS system waits for the entire bot reply to be generated, which feels unnatural. The goal is to refactor the system to speak the text as it appears on screen.
+**Setup:**
+1.  Load the `chat_identifier` directory as an unpacked extension in a Chromium-based browser.
+2.  Run the voice gateway server using `python3 voice_server/gateway.py`.
+3.  Ensure the extension's badge shows "ON".
+4.  *(Optional)* Place `thinking.mp3` and `error.mp3` files in the `chat_identifier/assets/` directory to test the audio cues. If the files are not present, the extension will log a warning to the service worker console but will not crash.
 
-### 2.1. Implement Real-time Text Batching
-- **Issue:** The system is not designed for streaming responses.
-- **Tasks:**
-    - **Content Script (`content.js`):**
-        - Reconfigure the `MutationObserver` to monitor for changes *inside* the bot's reply container, not just for the container's creation.
-        - Implement a text buffer that collects incoming words and batches them into sentences (e.g., sending a batch upon encountering `.`, `?`, `!`).
-        - Add logic to track which sentences have already been sent to the TTS engine to prevent re-speaking.
-    - **Gateway Server (`gateway.py`):**
-        - Implement a server-side audio queue to handle the incoming sentence batches. This ensures that audio for a new sentence only starts after the previous one has finished playing, preventing interruptions.
+---
 
-### 2.2. Advanced Text Sanitation (DOM-Aware Exclusion)
-- **Issue:** The current regex-based text cleaning is brittle and will fail with a streaming/batching model.
-- **Tasks:**
-    - **Content Script (`content.js`):**
-        - Add a `ttsExcludeSelectors` array to the `SITE_CONFIG` for each site (e.g., `['pre', 'code', 'button']`).
-        - As the `MutationObserver` detects new nodes, it must check if the node or any of its parents match the exclusion selectors.
-        - If a node is inside an excluded element, its text content should be ignored and never added to the TTS buffer.
+**Test 1: Real-time Streaming and Sanitation (CRITICAL TEST)**
+1.  Navigate to a supported chat site (e.g., `chatgpt.com`).
+2.  Ask the chatbot a question that will generate a long response with multiple sentences and a code block. For example: "Explain JavaScript promises in three sentences and provide a code example."
+3.  **Expected Result:**
+    *   The extension should begin speaking the first sentence of the reply as soon as it appears.
+    *   **Crucially, each sentence must be spoken only once.** As new sentences appear, they should be spoken sequentially without repeating the previous ones. This confirms the streaming buffer fix.
+    *   The content within any code blocks (`<pre>` or `<code>` elements) should be completely ignored by the TTS engine.
+    *   The extension popup should correctly display the total number of user and bot messages, and the "Last Message" preview should show the final, complete message from the bot.
 
-## 3. Advanced Chat State Identification
+---
 
-The current system only recognizes the final bot message. It needs to be aware of the entire lifecycle of a chatbot's reply.
+**Test 2: "Play in Browser" Functionality**
+1.  Go to the extension's options page.
+2.  Enable the setting **"Play audio directly in the browser"**.
+3.  Trigger a TTS response from a chatbot.
+4.  **Expected Result:** The audio should play from your browser. You should not hear any audio coming from the machine where the Python server is running.
 
-### 3.1. Handle "Thinking" Indicators
-- **Issue:** The extension is silent while the chatbot is processing a prompt, which can be confusing for the user.
-- **Tasks:**
-    - Add a `thinkingIndicatorSelector` to the `SITE_CONFIG`.
-    - When this element is detected, play a short, non-intrusive audio cue to signal that the system is working.
+---
 
-### 3.2. Identify and Speak "Thoughts" Content
-- **Issue:** For models that show their reasoning, this "thoughts" block is currently ignored.
-- **Tasks:**
-    - Add a `thoughtsSelector` to the `SITE_CONFIG`.
-    - Implement a state machine in the identification logic that first looks for and speaks the "thoughts" content (using the batching system) before moving on to the final answer.
-    - Consider making this an optional feature that can be toggled in the extension's settings.
+**Test 3: Advanced State Handling (Thinking & Errors)**
+1.  Navigate to a site with a visible thinking indicator (e.g., the streaming cursor on `chatgpt.com` or the pulsing dots on `claude.ai`).
+2.  Submit a prompt.
+3.  **Expected Result:** As soon as the thinking indicator appears, you should hear the "thinking" audio cue (if the file is present).
+4.  (If possible) Trigger an error state on the chat page (e.g., by causing a network error or using a prompt that the model rejects).
+5.  **Expected Result:** As soon as the error message appears, you should hear the "error" audio cue (if the file is present).
 
-### 3.3. Handle Failed Replies
-- **Issue:** The extension does not provide any feedback if the chatbot fails to generate a reply.
-- **Tasks:**
-    - Add an `errorSelector` to the `SITE_CONFIG`.
-    - When an error container is detected, play a distinct audio alert (e.g., "Response failed").
-    - Update the extension's state to reflect the error in the popup.
+---
+
+**Test 4: ASR via WebSockets (Regression Test)**
+1.  Click the extension popup, select a VOSK model, and click **"Start ASR"**.
+2.  Click on the chat input box and speak a phrase.
+3.  **Expected Result:** The recognized text should appear in the input box in near real-time. The browser's developer tools should show no polling requests to `/api/asr/results`.
+4.  Click **"Stop ASR"** and confirm it stops.

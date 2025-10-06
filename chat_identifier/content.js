@@ -15,11 +15,46 @@
   const SITE_CONFIG = {
     // IMPORTANT: Keep these selectors updated as website structures may change.
     // Use browser developer tools to inspect elements and update selectors if chat analysis stops working.
-    'chatgpt.com':{userSelector:['div[data-message-author-role="user"]'],botSelector:['div[data-message-author-role="assistant"]']},
-    'claude.ai':{userSelector:['.font-user-message','[data-testid="user-message"]'],botSelector:['.font-claude-message']},
-    'deepseek.com':{userSelector:['._9663006'],botSelector:['._4f9bf79']},
-    'kimi.com':{userSelector:['.chat-content-item-user'],botSelector:['.chat-content-item-assistant']},
-    'aistudio.google.com':{userSelector:['.chat-turn-container.user'],botSelector:['.chat-turn-container.model']}
+    'chatgpt.com': {
+      userSelector: ['div[data-message-author-role="user"]'],
+      botSelector: ['div[data-message-author-role="assistant"]'],
+      ttsExcludeSelectors: ['pre', 'code', 'button', 'svg'],
+      thinkingIndicatorSelector: '.result-streaming',
+      thoughtsSelector: null,
+      errorSelector: '[data-testid="conversation-turn-error-text"]',
+    },
+    'claude.ai': {
+      userSelector: ['.font-user-message', '[data-testid="user-message"]'],
+      botSelector: ['.font-claude-message'],
+      ttsExcludeSelectors: ['pre', 'code', 'button', 'svg'],
+      thinkingIndicatorSelector: '.dot-flashing',
+      thoughtsSelector: null,
+      errorSelector: null, // Claude shows errors in the same message block
+    },
+    'deepseek.com': {
+      userSelector: ['._9663006'],
+      botSelector: ['._4f9bf79'],
+      ttsExcludeSelectors: ['pre', 'code', 'button', 'svg'],
+      thinkingIndicatorSelector: null,
+      thoughtsSelector: null,
+      errorSelector: null,
+    },
+    'kimi.com': {
+      userSelector: ['.chat-content-item-user'],
+      botSelector: ['.chat-content-item-assistant'],
+      ttsExcludeSelectors: ['pre', 'code', 'button', 'svg'],
+      thinkingIndicatorSelector: null,
+      thoughtsSelector: null,
+      errorSelector: '.chat-error-container',
+    },
+    'aistudio.google.com': {
+      userSelector: ['.chat-turn-container.user'],
+      botSelector: ['.chat-turn-container.model'],
+      ttsExcludeSelectors: ['pre', 'code', 'button', 'svg', 'mat-icon'],
+      thinkingIndicatorSelector: '.loading-animation-container',
+      thoughtsSelector: null,
+      errorSelector: '.error-container',
+    }
   };
 
   const state = {
@@ -29,51 +64,138 @@
     recentMessage: { role: null, html: 'No messages detected yet.' }
   };
 
+  // State management for tracking individual bot messages for TTS
+  const ttsMessageTracker = new Map();
+
   const currentHostname = Object.keys(SITE_CONFIG).find(host => location.hostname.includes(host));
   const currentConfig = SITE_CONFIG[currentHostname];
 
-  // --- 2. CORE LOGIC ---
+  // --- 2. CORE LOGIC (Refactored for Streaming) ---
 
   function initialize() {
     if (!currentConfig) return;
+
+    // This debounced function will update the UI after a short delay, allowing
+    // for streaming messages to populate before the "last message" is captured.
+    const debouncedUpdate = debounce(updateCountsAndNotify, 250);
 
     chrome.storage.local.get({ isAnalyzerEnabled: true }, (result) => {
       state.isAnalyzerEnabled = result.isAnalyzerEnabled;
       injectStyles();
       document.body.classList.toggle('chat-analyzer-disabled', !state.isAnalyzerEnabled);
-      const debouncedScan = debounce(scanAndMarkAll, 200);
-      const observer = new MutationObserver(debouncedScan);
-      observer.observe(document.body, { childList: true, subtree: true });
-      debouncedScan();
+
+      const observer = new MutationObserver((mutations) => handleMutations(mutations, debouncedUpdate));
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      // Initial scan for any messages already on the page
+      const initialUserMessages = document.querySelectorAll(currentConfig.userSelector.join(','));
+      initialUserMessages.forEach(node => markMessage(node, 'user'));
+
+      const initialBotMessages = document.querySelectorAll(currentConfig.botSelector.join(','));
+      initialBotMessages.forEach(node => processBotMessage(node, true));
+
+      updateCountsAndNotify(); // Update immediately on load
     });
   }
 
-  function scanAndMarkAll() {
-    const allSelectors = [...(currentConfig.userSelector || []), ...(currentConfig.botSelector || [])].join(', ');
-    if (!allSelectors) return;
-    
-    document.querySelectorAll(allSelectors).forEach(processNode);
-    updateStateAndNotify();
+  function handleMutations(mutations, debouncedUpdate) {
+    if (!state.isAnalyzerEnabled) return;
+
+    let needsStateUpdate = false;
+
+    for (const mutation of mutations) {
+      if (mutation.type === 'childList') {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+          if (currentConfig.thinkingIndicatorSelector && matchesAnySelector(node, [currentConfig.thinkingIndicatorSelector])) {
+            chrome.runtime.sendMessage({ action: 'play_audio_cue', sound: 'thinking' });
+          }
+          if (currentConfig.errorSelector && matchesAnySelector(node, [currentConfig.errorSelector])) {
+            chrome.runtime.sendMessage({ action: 'play_audio_cue', sound: 'error' });
+            needsStateUpdate = true;
+          }
+
+          if (matchesAnySelector(node, currentConfig.userSelector)) {
+            markMessage(node, 'user');
+            needsStateUpdate = true;
+          }
+          if (matchesAnySelector(node, currentConfig.botSelector)) {
+            processBotMessage(node, false);
+            needsStateUpdate = true;
+          }
+        }
+      }
+
+      if (mutation.type === 'characterData') {
+        const parentBotMessage = mutation.target.parentElement?.closest(currentConfig.botSelector.join(','));
+        if (parentBotMessage) {
+          processBotMessage(parentBotMessage, false);
+          needsStateUpdate = true;
+        }
+      }
+    }
+
+    if (needsStateUpdate) {
+      debouncedUpdate();
+    }
   }
 
-  function processNode(node) {
-    if (node.dataset.chatAnalyzerProcessed) return;
-    let role = null;
-    if (matchesAnySelector(node, currentConfig.userSelector)) role = 'user';
-    else if (matchesAnySelector(node, currentConfig.botSelector)) role = 'bot';
+  function getSanitizedText(node) {
+    const clone = node.cloneNode(true);
+    if (currentConfig.ttsExcludeSelectors && currentConfig.ttsExcludeSelectors.length > 0) {
+      const excludeSelector = currentConfig.ttsExcludeSelectors.join(',');
+      clone.querySelectorAll(excludeSelector).forEach(el => el.remove());
+    }
+    return clone.innerText;
+  }
 
-    if (role) {
-      markMessage(node, role);
+  function processBotMessage(node, isPageLoad) {
+    markMessage(node, 'bot');
+
+    // --- Real-time TTS Batching Logic (Corrected) ---
+    if (!ttsMessageTracker.has(node)) {
+      ttsMessageTracker.set(node, {
+        processedLength: 0, // Tracks how much of the text has been processed.
+        buffer: ''          // Stores incomplete sentences.
+      });
+    }
+
+    const tracker = ttsMessageTracker.get(node);
+    const currentText = getSanitizedText(node);
+
+    // Only process if there's new text we haven't seen.
+    if (currentText.length > tracker.processedLength) {
+      const newTextChunk = currentText.substring(tracker.processedLength);
+      tracker.processedLength = currentText.length; // Update our pointer immediately.
+      tracker.buffer += newTextChunk;
+
+      const sentenceEndings = /(?<=[.?!])\s*/;
+      let sentences = tracker.buffer.split(sentenceEndings);
+
+      if (sentences.length > 1) {
+        const completeSentences = sentences.slice(0, -1).join('');
+        tracker.buffer = sentences[sentences.length - 1]; // Keep the remainder in the buffer.
+
+        if (completeSentences) {
+          sendToTTSGateway(completeSentences.trim());
+        }
+      }
     }
   }
 
   function markMessage(element, role) {
+    if (element.dataset.chatAnalyzerProcessed) return;
     element.dataset.chatAnalyzerProcessed = 'true';
     element.classList.add(role === 'user' ? 'chat-analyzer-user' : 'chat-analyzer-bot');
     element.dataset.messageRole = role;
   }
 
-  async function updateStateAndNotify() {
+  function updateCountsAndNotify() {
     const allMarked = document.querySelectorAll('[data-chat-analyzer-processed]');
     const visibleMessages = Array.from(allMarked).filter(el => el.offsetParent !== null);
     
@@ -83,100 +205,24 @@
     const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
 
     if (lastVisibleMessage) {
-        const role = lastVisibleMessage.dataset.messageRole;
-        let displayHtml = lastVisibleMessage.innerHTML; // Always store raw HTML for preview
-
-        // Process for TTS only if it's a bot message and should be spoken
-        if (role === 'bot') {
-            const processedText = await processTextForTTS(lastVisibleMessage, isInitialScan);
-            if (processedText && !lastVisibleMessage.dataset.hasBeenSpoken) {
-                lastVisibleMessage.dataset.hasBeenSpoken = 'true';
-                sendToTTSGateway(processedText, role);
-            }
-        }
-
-        state.recentMessage = {
-            role: role,
-            html: displayHtml
-        };
-        
+      state.recentMessage = {
+        role: lastVisibleMessage.dataset.messageRole,
+        html: lastVisibleMessage.innerHTML
+      };
     } else {
-        state.recentMessage = { role: null, html: 'No messages detected yet.' };
+      state.recentMessage = { role: null, html: 'No messages detected yet.' };
     }
     
     try {
-      chrome.runtime.sendMessage({ action: 'stateUpdate', data: state }, () => {
-          // The presence of a callback prevents an Uncaught (in promise) error
-          // when the extension context is invalidated. We can check chrome.runtime.lastError here
-          // but in this case, we don't need to do anything.
-          if (chrome.runtime.lastError) { /* Silently ignore */ }
-      });
+      chrome.runtime.sendMessage({ action: 'stateUpdate', data: state });
     } catch (e) { /* Safe to ignore */ }
-    
+
     if (isInitialScan) {
       isInitialScan = false;
     }
   }
 
-  async function processTextForTTS(element, isPageLoad) {
-    const settings = await chrome.storage.local.get({
-        isTtsEnabled: true,
-        speakOnCompletion: true,
-        speakOnLoad: false,
-        formattingRules: {}
-    });
-
-    // --- DECISION LOGIC: Should we speak? ---
-    if (!settings.isTtsEnabled) return null;
-    if (isPageLoad && !settings.speakOnLoad) {
-        return null;
-    }
-    if (!isPageLoad && !settings.speakOnCompletion) {
-        return null;
-    }
-    
-    // --- PROCESSING LOGIC: If we should speak, what do we say? ---
-    const rulesConfig = settings.formattingRules;
-    if (!rulesConfig || !rulesConfig.useFormatting) {
-        return element.innerText.trim();
-    }
-
-    let processedText = element.innerText; // Start with innerText for text-based rules
-
-    // Apply rules sequentially based on the JSON config
-    rulesConfig.rules.forEach(rule => {
-        if (!rule.enabled) return;
-
-        switch (rule.id) {
-            case 'removeMarkdown':
-                processedText = processedText.replace(/\*\*([^\*]+?)\*\*/g, '$1'); // **bold**
-                processedText = processedText.replace(/\*([^\*]+?)\*/g, '$1');   // *italics*
-                processedText = processedText.replace(/`([^`]+?)`/g, '$1');     // `code`
-                processedText = processedText.replace(/\[([^\]]+?)\]\([^\)]+?\)/g, '$1'); // [link](url)
-                break;
-            case 'removeCode':
-                // This rule should ideally operate on HTML, but for innerText, we can try to remove common patterns
-                // For more robust HTML removal, a DOM manipulation approach would be needed.
-                // For now, we'll rely on innerText which strips most HTML.
-                break;
-            case 'removeJsCss':
-                // Similar to removeCode, innerText already strips these.
-                break;
-            case 'removeSpecialChars':
-                const specialCharsRule = rulesConfig.rules.find(r => r.id === 'specialCharsList');
-                if (specialCharsRule && specialCharsRule.value) {
-                    const escapedChars = specialCharsRule.value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                    const regex = new RegExp(`[${escapedChars}]`, 'g');
-                    processedText = processedText.replace(regex, '');
-                }
-                break;
-        }
-    });
-
-    return processedText.trim();
-  }
-
-async function sendToTTSGateway(processedText, messageRole) {
+async function sendToTTSGateway(processedText) {
     if (!processedText) return;
 
     // FETCH ALL SETTINGS needed for the request
@@ -209,7 +255,7 @@ async function sendToTTSGateway(processedText, messageRole) {
         payload.sentence_silence = voiceSettings.sentenceSilence;
     }
     
-    logEvent('TTS Request', `Text: "${processedText.substring(0, 40)}...". Model: ${payload.model}. Speaker: ${payload.speaker_id ?? 'N/A'}`, 'Sent', `content_sendToTTSGateway_success_${messageRole}`, payload, LOG_LEVELS.INFO);
+    logEvent('TTS Request', `Text: "${processedText.substring(0, 40)}...". Model: ${payload.model}. Speaker: ${payload.speaker_id ?? 'N/A'}`, 'Sent', 'content_sendToTTSGateway_success', payload, LOG_LEVELS.INFO);
     
     chrome.runtime.sendMessage({ action: 'ttsRequest', payload }, (response) => {
         if (chrome.runtime.lastError) {
@@ -278,12 +324,6 @@ async function sendToTTSGateway(processedText, messageRole) {
           insertTextAtCursor(message.text + " "); // Add a space after insertion
           logEvent('ASR Input', `Inserted via WebSocket: "${message.text}"`, 'Success', 'asr_text_inserted_ws', {}, LOG_LEVELS.INFO);
         }
-        break;
-      case 'startAsrPolling': // Kept for legacy compatibility if needed, though now unused.
-        // startAsrPolling();
-        break;
-      case 'stopAsrPolling': // Kept for legacy compatibility if needed, though now unused.
-        // stopAsrPolling();
         break;
     }
     return true; // Indicates that the response may be sent asynchronously.
