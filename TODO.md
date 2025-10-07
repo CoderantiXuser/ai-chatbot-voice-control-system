@@ -1,6 +1,6 @@
 # Project TODO and Refinement Plan
 
-This document outlines the key features and manual verification steps for the Voice Gateway Controller extension, focusing on the real-time, conversational TTS implementation.
+This document outlines the key features and manual verification steps for the Voice Gateway Controller extension, focusing on the real-time, conversational TTS implementation and the new settings panel.
 
 ## 1. Core Features Implemented
 
@@ -9,8 +9,11 @@ This document outlines the key features and manual verification steps for the Vo
 *   **Advanced State Identification:** The extension now provides audio feedback for the entire lifecycle of a chatbot interaction:
     *   **Thinking:** Plays a non-intrusive audio cue when the chatbot is processing a request.
     *   **Error:** Plays a distinct audio alert when the chatbot fails to generate a response.
-*   **WebSocket-based ASR:** The ASR system has been modernized to use WebSockets, providing faster and more efficient transcription.
-*   **"Play in Browser" Fixed:** The server now correctly sends audio data to the client, allowing TTS to be played directly in the browser.
+*   **Enhanced Settings Panel:**
+    *   **New Layout:** The settings panel has been redesigned with collapsible sections for better organization.
+    *   **Flexible Model Configuration:** Users can now specify custom directories for TTS and ASR models via the UI or by setting `TTS_MODELS_DIR` and `ASR_MODELS_DIR` environment variables on the server.
+    *   **File Browser:** A new in-app file browser allows users to easily locate and select their local model directories.
+    *   **Descriptive Tooltips:** Each setting now has a helpful tooltip to clarify its function.
 
 ## 2. Manual Verification Plan
 
@@ -18,40 +21,39 @@ This document outlines the key features and manual verification steps for the Vo
 1.  Load the `chat_identifier` directory as an unpacked extension in a Chromium-based browser.
 2.  Run the voice gateway server using `python3 voice_server/gateway.py`.
 3.  Ensure the extension's badge shows "ON".
-4.  *(Optional)* Place `thinking.mp3` and `error.mp3` files in the `chat_identifier/assets/` directory to test the audio cues. If the files are not present, the extension will log a warning to the service worker console but will not crash.
+4.  *(Optional)* Place `thinking.mp3` and `error.mp3` files in the `chat_identifier/assets/` directory to test the audio cues.
 
 ---
 
-**Test 1: Real-time Streaming and Sanitation (CRITICAL TEST)**
+**Test 1: Settings Panel UI and Functionality**
+1.  Open the extension's options page.
+2.  **Layout:** Verify that the settings are grouped into collapsible sections: "General", "Text-to-Speech (TTS)", "Speech-to-Text (ASR)", and "Advanced".
+3.  **Tooltips:** Hover over the info icon (`ⓘ`) next to several settings (e.g., "Play audio directly in browser", "TTS Models Directory").
+    *   **Expected Result:** A descriptive tooltip should appear for each icon, explaining the setting.
+4.  **File Browser:**
+    *   In the "Text-to-Speech (TTS)" section, click the "Browse..." button.
+    *   **Expected Result:** A file browser modal should appear, showing directories from your home folder.
+    *   Navigate through a few directories. Use the "Parent Directory" link to go up.
+    *   Select a directory containing Piper TTS models and click "Select Current Directory".
+    *   **Expected Result:** The modal should close, and the selected path should appear in the "TTS Models Directory" input field. The "Voice Model" dropdown should update to show the models from the selected directory.
+5.  Repeat the file browser test for the "ASR Models Directory".
+
+---
+
+**Test 2: Real-time Streaming and Sanitation**
 1.  Navigate to a supported chat site (e.g., `chatgpt.com`).
-2.  Ask the chatbot a question that will generate a long response with multiple sentences and a code block. For example: "Explain JavaScript promises in three sentences and provide a code example."
+2.  Ask the chatbot a question that will generate a long response with multiple sentences and a code block.
 3.  **Expected Result:**
     *   The extension should begin speaking the first sentence of the reply as soon as it appears.
-    *   **Crucially, each sentence must be spoken only once.** As new sentences appear, they should be spoken sequentially without repeating the previous ones. This confirms the streaming buffer fix.
-    *   The content within any code blocks (`<pre>` or `<code>` elements) should be completely ignored by the TTS engine.
-    *   The extension popup should correctly display the total number of user and bot messages, and the "Last Message" preview should show the final, complete message from the bot.
-
----
-
-**Test 2: "Play in Browser" Functionality**
-1.  Go to the extension's options page.
-2.  Enable the setting **"Play audio directly in the browser"**.
-3.  Trigger a TTS response from a chatbot.
-4.  **Expected Result:** The audio should play from your browser. You should not hear any audio coming from the machine where the Python server is running.
+    *   Each sentence must be spoken only once.
+    *   The content within any code blocks should be ignored.
+    *   The extension popup should correctly display the message counts and the final message.
 
 ---
 
 **Test 3: Advanced State Handling (Thinking & Errors)**
-1.  Navigate to a site with a visible thinking indicator (e.g., the streaming cursor on `chatgpt.com` or the pulsing dots on `claude.ai`).
+1.  Navigate to a site with a visible thinking indicator (e.g., the streaming cursor on `chatgpt.com`).
 2.  Submit a prompt.
-3.  **Expected Result:** As soon as the thinking indicator appears, you should hear the "thinking" audio cue (if the file is present).
-4.  (If possible) Trigger an error state on the chat page (e.g., by causing a network error or using a prompt that the model rejects).
-5.  **Expected Result:** As soon as the error message appears, you should hear the "error" audio cue (if the file is present).
-
----
-
-**Test 4: ASR via WebSockets (Regression Test)**
-1.  Click the extension popup, select a VOSK model, and click **"Start ASR"**.
-2.  Click on the chat input box and speak a phrase.
-3.  **Expected Result:** The recognized text should appear in the input box in near real-time. The browser's developer tools should show no polling requests to `/api/asr/results`.
-4.  Click **"Stop ASR"** and confirm it stops.
+3.  **Expected Result:** You should hear the "thinking" audio cue (if the file is present).
+4.  (If possible) Trigger an error state on the chat page.
+5.  **Expected Result:** You should hear the "error" audio cue (if the file is present).

@@ -447,3 +447,142 @@ fieldset[disabled] {
   font-weight: 500;
   color: var(--color-text-primary);
 }
+
+/* ===================================================================
+   3. NEW SETTINGS COMPONENTS (Model Dirs & File Browser)
+   =================================================================== */
+
+.path-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.path-input-group label, .checkbox-item label, .control-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.path-input-group label {
+    flex-shrink: 0;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+
+.path-input-group input[type="text"] {
+    flex-grow: 1;
+    background-color: var(--color-dark-bg);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-family: 'Fira Code', monospace;
+}
+
+/* --- File Browser Modal --- */
+.file-browser {
+    width: 60vw;
+    max-width: 800px;
+    height: 70vh;
+    max-height: 600px;
+}
+
+.current-path-display {
+    background-color: var(--color-dark-bg);
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-family: 'Fira Code', monospace;
+    word-break: break-all;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.directory-list {
+    height: 100%; /* Take up available space */
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    background-color: var(--color-dark-bg);
+}
+
+.directory-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none; /* Prevent text selection */
+}
+
+.directory-item:before {
+    content: '📁';
+    font-size: 1.2em;
+    color: var(--color-accent-blue-light);
+}
+
+.directory-item.parent:before {
+    content: '⤴️';
+}
+
+
+.directory-item:hover {
+    background-color: var(--color-accent-blue);
+    color: white;
+}
+
+.directory-item.selected {
+    background-color: var(--color-accent-blue-light);
+    color: white;
+    font-weight: 600;
+}
+
+/* --- Tooltip Styles --- */
+.tooltip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--color-text-secondary);
+    color: var(--color-dark-surface);
+    font-size: 12px;
+    font-weight: bold;
+    cursor: help;
+    position: relative;
+    user-select: none;
+}
+
+.tooltip-icon:after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%; /* Position above the icon */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--color-dark-bg);
+    color: var(--color-text-primary);
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+    font-size: 0.9em;
+    font-weight: normal;
+    white-space: pre-wrap; /* Use pre-wrap to respect newlines and wrap text */
+    width: 300px; /* Max width for the tooltip */
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+    pointer-events: none;
+    z-index: 1001; /* Ensure it's above other elements */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.tooltip-icon:hover:after {
+    opacity: 1;
+    visibility: visible;
+}

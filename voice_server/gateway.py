@@ -133,6 +133,36 @@ class VoiceGateway:
                 return jsonify(models)
             return jsonify({"error": "Unknown model type"}), 404
 
+        @api_blueprint.route('/browse', methods=['GET'])
+        def browse_directories():
+            """Securely browses directories within the user's home directory."""
+            home_dir = os.path.expanduser('~')
+            req_path = request.args.get('path', home_dir)
+
+            # --- Security Check ---
+            # Resolve the absolute path and ensure it's within the home directory.
+            abs_req_path = os.path.abspath(os.path.join(home_dir, req_path))
+            if not abs_req_path.startswith(home_dir):
+                return jsonify({"error": "Access denied. Path is outside the allowed directory."}), 403
+
+            try:
+                if not os.path.isdir(abs_req_path):
+                    return jsonify({"error": "Path is not a valid directory."}), 400
+
+                # List contents and filter for directories only
+                dirs = [d for d in os.listdir(abs_req_path) if os.path.isdir(os.path.join(abs_req_path, d))]
+
+                # Provide parent directory for navigation
+                parent = os.path.dirname(abs_req_path) if abs_req_path != home_dir else None
+
+                return jsonify({
+                    "current_path": abs_req_path,
+                    "parent_path": parent,
+                    "directories": sorted(dirs)
+                })
+            except Exception as e:
+                return jsonify({"error": f"Failed to browse directory: {e}"}), 500
+
         self.app.register_blueprint(api_blueprint)
 
         # --- Web UI Routes ---
@@ -205,13 +235,23 @@ class VoiceGateway:
         self.socketio.emit('new_log', log_entry)
 
     def scan_models(self):
-        """Scans configured directories for Piper and VOSK models."""
+        """Scans configured directories for Piper and VOSK models, prioritizing environment variables."""
         self.log_event("Model Scan", "Scanning for models...", "Info", level="SYSTEM")
+
+        # --- Determine Model Directories ---
+        tts_env_path = os.getenv('TTS_MODELS_DIR')
+        asr_env_path = os.getenv('ASR_MODELS_DIR')
+
+        piper_model_dirs = [tts_env_path] if tts_env_path else self.CONFIG['PIPER_MODEL_DIRS']
+        vosk_model_dirs = [asr_env_path] if asr_env_path else self.CONFIG['VOSK_MODEL_DIRS']
         
-        # --- Piper ---
+        self.log_event("Model Scan", f"Piper (TTS) directories: {piper_model_dirs}", "Info")
+        self.log_event("Model Scan", f"VOSK (ASR) directories: {vosk_model_dirs}", "Info")
+
+        # --- Piper (TTS) Scan ---
         piper_found = []
-        for dir_path in self.CONFIG['PIPER_MODEL_DIRS']:
-            if not os.path.isdir(dir_path): continue
+        for dir_path in piper_model_dirs:
+            if not dir_path or not os.path.isdir(dir_path): continue
             try:
                 for filename in os.listdir(dir_path):
                     if not filename.endswith(".onnx"): continue
@@ -220,7 +260,7 @@ class VoiceGateway:
                     json_path = model_path + ".json"
                     if os.path.exists(json_path):
                         try:
-                            with open(json_path, 'r') as f:
+                            with open(json_path, 'r', encoding='utf-8') as f:
                                 metadata = json.load(f)
                             if metadata.get("num_speakers", 0) > 1:
                                 speakers = [{"id": v, "name": k} for k, v in metadata.get("speaker_id_map", {}).items()]
@@ -231,12 +271,12 @@ class VoiceGateway:
             except OSError as e:
                 self.log_event("Model Scan Error", f"Could not scan Piper directory {dir_path}: {e}", "Error", level="ERROR", full_data={"directory": dir_path, "error": str(e)})
         self.available_piper_models = sorted(piper_found, key=lambda x: x["name"])
-        self.log_event("Model Scan", f"Found {len(self.available_piper_models)} Piper models.", "Success", level="INFO")
+        self.log_event("Model Scan", f"Found {len(self.available_piper_models)} Piper models.", "Success" if piper_found else "Info")
 
-        # --- VOSK ---
+        # --- VOSK (ASR) Scan ---
         vosk_found = []
-        for dir_path in self.CONFIG['VOSK_MODEL_DIRS']:
-            if not os.path.isdir(dir_path): continue
+        for dir_path in vosk_model_dirs:
+            if not dir_path or not os.path.isdir(dir_path): continue
             try:
                 for item in os.listdir(dir_path):
                     model_path = os.path.join(dir_path, item)
@@ -245,7 +285,7 @@ class VoiceGateway:
             except OSError as e:
                 self.log_event("Model Scan Error", f"Could not scan VOSK directory {dir_path}: {e}", "Error", level="ERROR", full_data={"directory": dir_path, "error": str(e)})
         self.available_vosk_models = sorted(vosk_found)
-        self.log_event("Model Scan", f"Found {len(self.available_vosk_models)} VOSK models.", "Success", level="INFO")
+        self.log_event("Model Scan", f"Found {len(self.available_vosk_models)} VOSK models.", "Success" if vosk_found else "Info")
 
     def load_asr_commands(self):
         """Loads ASR commands from a JSON file."""

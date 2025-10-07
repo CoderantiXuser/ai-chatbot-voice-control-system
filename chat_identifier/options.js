@@ -36,6 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveButton = document.getElementById('save-button');
     const statusEl = document.getElementById('status');
 
+    const ttsModelsDirInput = document.getElementById('tts-models-dir');
+    const asrModelsDirInput = document.getElementById('asr-models-dir');
+    const browseTtsButton = document.getElementById('browse-tts-button');
+    const browseAsrButton = document.getElementById('browse-asr-button');
+    const fileBrowserModal = document.getElementById('file-browser-modal');
+    const currentPathSpan = document.getElementById('current-path');
+    const directoryListDiv = document.getElementById('directory-list');
+    const cancelBrowseButton = document.getElementById('cancel-browse-button');
+    const selectDirButton = document.getElementById('select-dir-button');
+
     const popupLink = document.getElementById('popup-link');
     const logsLink = document.getElementById('logs-link');
     
@@ -72,6 +82,69 @@ document.addEventListener('DOMContentLoaded', () => {
     linkInputs(noiseScaleInput, noiseScaleRange);
     linkInputs(noiseWInput, noiseWRange);
     linkInputs(sentenceSilenceInput, sentenceSilenceRange);
+
+    // --- File Browser Logic ---
+    let activePathInput = null; // This will point to either ttsModelsDirInput or asrModelsDirInput
+    let selectedDirectoryItem = null;
+
+    function openFileBrowser(targetInput) {
+        activePathInput = targetInput;
+        fileBrowserModal.classList.remove('hidden');
+        const initialPath = targetInput.value || '~'; // Start from home dir or current value
+        browseDirectory(initialPath);
+    }
+
+    function closeFileBrowser() {
+        fileBrowserModal.classList.add('hidden');
+        activePathInput = null;
+        selectedDirectoryItem = null;
+    }
+
+    async function browseDirectory(path) {
+        directoryListDiv.innerHTML = '<p>Loading...</p>';
+        try {
+            const response = await fetch(`${GATEWAY_URL}/api/browse?path=${encodeURIComponent(path)}`);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || `Gateway returned status ${response.status}`);
+            }
+            const data = await response.json();
+            renderDirectoryList(data);
+        } catch (error) {
+            showStatus(`Error browsing: ${error.message}`, 'error', 5000, LOG_LEVELS.ERROR);
+            directoryListDiv.innerHTML = `<p style="color: var(--color-accent-red);">Error: ${error.message}</p>`;
+        }
+    }
+
+    function renderDirectoryList(data) {
+        currentPathSpan.textContent = data.current_path;
+        directoryListDiv.innerHTML = '';
+
+        if (data.parent_path) {
+            const parentItem = document.createElement('div');
+            parentItem.className = 'directory-item parent';
+            parentItem.textContent = '.. (Parent Directory)';
+            parentItem.addEventListener('click', () => browseDirectory(data.parent_path));
+            directoryListDiv.appendChild(parentItem);
+        }
+
+        data.directories.forEach(dir => {
+            const item = document.createElement('div');
+            item.className = 'directory-item';
+            item.textContent = dir;
+            item.dataset.path = `${data.current_path}/${dir}`.replace('//', '/');
+
+            item.addEventListener('dblclick', () => browseDirectory(item.dataset.path));
+            item.addEventListener('click', () => {
+                if (selectedDirectoryItem) {
+                    selectedDirectoryItem.classList.remove('selected');
+                }
+                item.classList.add('selected');
+                selectedDirectoryItem = item;
+            });
+            directoryListDiv.appendChild(item);
+        });
+    }
 
     // --- Default Rules Structure ---
     /**
@@ -239,6 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
             speakOnLoad: speakOnLoadToggle.checked,
             playInBrowser: playInBrowserToggle.checked,
             formattingRules: formattingRules,
+            ttsModelsDir: ttsModelsDirInput.value,
+            asrModelsDir: asrModelsDirInput.value,
         }, () => {
             showStatus('Options saved successfully!', 'success', 3000, LOG_LEVELS.INFO);
         });
@@ -261,7 +336,9 @@ document.addEventListener('DOMContentLoaded', () => {
             speakOnCompletion: true,
             speakOnLoad: false,
             playInBrowser: false,
-            formattingRules: getDefaultFormattingRules()
+            formattingRules: getDefaultFormattingRules(),
+            ttsModelsDir: '',
+            asrModelsDir: ''
         }, (items) => {
             // Restore Models
             if (items.selectedVoskModel) voskSelect.value = items.selectedVoskModel;
@@ -292,6 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
             useFormattingToggle.checked = formattingRules.useFormatting;
             renderRuleCheckboxes(formattingRules.rules);
             updateProcessingGroupState();
+
+            // Restore model directories
+            ttsModelsDirInput.value = items.ttsModelsDir;
+            asrModelsDirInput.value = items.asrModelsDir;
         });
     }
 
@@ -494,6 +575,20 @@ document.addEventListener('DOMContentLoaded', () => {
     piperSelect.addEventListener('change', updatePiperSpeakerUI);
     previewVoiceButton.addEventListener('click', handlePreviewVoice);
     useFormattingToggle.addEventListener('change', updateProcessingGroupState);
+
+    // File Browser Listeners
+    browseTtsButton.addEventListener('click', () => openFileBrowser(ttsModelsDirInput));
+    browseAsrButton.addEventListener('click', () => openFileBrowser(asrModelsDirInput));
+    cancelBrowseButton.addEventListener('click', closeFileBrowser);
+    selectDirButton.addEventListener('click', () => {
+        if (selectedDirectoryItem) {
+            activePathInput.value = selectedDirectoryItem.dataset.path;
+        } else {
+            // If no directory is selected, use the current path
+            activePathInput.value = currentPathSpan.textContent;
+        }
+        closeFileBrowser();
+    });
 
     // Event listeners for navigation links
     if (popupLink) {
