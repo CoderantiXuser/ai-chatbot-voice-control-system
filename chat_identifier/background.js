@@ -304,6 +304,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'play_audio_cue') {
     playAudioCue(message.sound);
     // No response needed, so we don't return true.
+  } else if (message.action === 'download_history') {
+    const { content, format, filename } = message.payload;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    chrome.downloads.download({
+      url: url,
+      filename: `${filename}.${format}`,
+      saveAs: true
+    }, (downloadId) => {
+      // Revoke the object URL after the download has started to free up memory.
+      URL.revokeObjectURL(url);
+      if (chrome.runtime.lastError) {
+        logEvent({
+          source: 'background.js',
+          event: 'Download',
+          details: `Download failed: ${chrome.runtime.lastError.message}`,
+          status: 'Error',
+          triggerId: 'download_history_error',
+          level: LOG_LEVELS.ERROR
+        });
+      }
+    });
   } else if (message.action === 'ttsRequest') {
     handleTtsRequest(message.payload, sendResponse);
     return true; // Indicates an asynchronous response.

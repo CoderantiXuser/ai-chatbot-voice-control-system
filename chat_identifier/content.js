@@ -325,9 +325,87 @@ async function sendToTTSGateway(processedText) {
           logEvent('ASR Input', `Inserted via WebSocket: "${message.text}"`, 'Success', 'asr_text_inserted_ws', {}, LOG_LEVELS.INFO);
         }
         break;
+      case 'request_chat_history':
+        loadFullHistoryAndDownload(message.format)
+          .then(() => sendResponse({ success: true }))
+          .catch(err => sendResponse({ success: false, error: err.message }));
+        return true; // Indicates an asynchronous response.
     }
     return true; // Indicates that the response may be sent asynchronously.
   });
+
+  async function loadFullHistoryAndDownload(format) {
+    logEvent('History Download', `Starting history download (Format: ${format}).`, 'Info', 'history_download_start');
+
+    // This is a placeholder for the scroll container selector.
+    // A more robust solution would add this to SITE_CONFIG.
+    const scrollContainer = document.querySelector('main');
+
+    if (!scrollContainer) {
+      throw new Error("Could not find a scrollable chat container.");
+    }
+
+    let lastScrollHeight = 0;
+    let retries = 3; // Number of times to try scrolling up without change before stopping.
+
+    while (true) {
+      const currentScrollHeight = scrollContainer.scrollHeight;
+      scrollContainer.scrollTop = 0; // Scroll to the top
+
+      // Wait for new content to potentially load
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const newScrollHeight = scrollContainer.scrollHeight;
+
+      if (newScrollHeight === currentScrollHeight) {
+        retries--;
+        if (retries <= 0) {
+          logEvent('History Download', 'Reached the top of the conversation.', 'Info', 'history_download_top');
+          break; // Exit loop if scroll height hasn't changed after retries
+        }
+      } else {
+        retries = 3; // Reset retries if new content was loaded
+      }
+      lastScrollHeight = newScrollHeight;
+    }
+
+    // Now collect and format the history
+    await collectAndFormatHistory(format);
+  }
+
+  async function collectAndFormatHistory(format) {
+    const allSelectors = [...currentConfig.userSelector, ...currentConfig.botSelector].join(',');
+    const allMessages = Array.from(document.querySelectorAll(allSelectors));
+
+    let formattedText = '';
+    const title = document.title || 'Chat History';
+
+    if (format === 'md') {
+      formattedText = `# ${title}\n\n`;
+      formattedText += allMessages.map(node => {
+        const role = matchesAnySelector(node, currentConfig.userSelector) ? 'User' : 'Bot';
+        const content = getSanitizedText(node); // Reuse sanitation logic
+        return `### ${role}\n\n${content}\n\n---\n\n`;
+      }).join('');
+    } else { // txt format
+      formattedText = `${title}\n\n`;
+      formattedText += allMessages.map(node => {
+        const role = matchesAnySelector(node, currentConfig.userSelector) ? 'User' : 'Bot';
+        const content = getSanitizedText(node);
+        return `[${role.toUpperCase()}]\n${content}\n\n====================\n\n`;
+      }).join('');
+    }
+
+    // Send the result to the background script for download
+    chrome.runtime.sendMessage({
+      action: 'download_history',
+      payload: {
+        content: formattedText,
+        format: format,
+        filename: title.replace(/[^a-z0-9_]/gi, '_').toLowerCase() // Generate a safe filename
+      }
+    });
+  }
 
   function logEvent(event, details, status, triggerId = 'N/A', fullData = {}, level = LOG_LEVELS.INFO) {
      chrome.runtime.sendMessage({

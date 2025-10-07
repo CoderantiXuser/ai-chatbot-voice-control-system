@@ -77,6 +77,19 @@
         <div id="recent-message" class="recent-message-content"></div>
       </div>
     </section>
+
+    <section class="control-section">
+        <div class="control-item">
+            <label class="control-label">Chat History</label>
+            <div class="control-group-horizontal">
+                <select id="format-select" class="control-select-small">
+                    <option value="md">Markdown (.md)</option>
+                    <option value="txt">Text (.txt)</option>
+                </select>
+                <button id="download-history-button" class="action-button" disabled>Download</button>
+            </div>
+        </div>
+    </section>
   </div>
 
   <script src="popup.js"></script>

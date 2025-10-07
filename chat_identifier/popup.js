@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const recentMessageContainer = document.getElementById('recent-message');
   const statusMessageDiv = document.getElementById('status-message');
 
+  const downloadHistoryButton = document.getElementById('download-history-button');
+  const formatSelect = document.getElementById('format-select');
+
   // --- Configuration ---
   const GATEWAY_URL = 'http://127.0.0.1:5000';
   const STATUS_CHECK_INTERVAL = 5000; // Check all statuses every 5 seconds
@@ -68,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderConnectionError();
       return;
     }
+    downloadHistoryButton.disabled = false; // Enable on successful connection
     statsContainer.hidden = false;
     statsContainer.querySelector('#user-count').textContent = state.userCount;
     statsContainer.querySelector('#bot-count').textContent = state.botCount;
@@ -86,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderConnectionError() {
     statsContainer.hidden = true;
+    downloadHistoryButton.disabled = true; // Disable on error
     const retryHtml = `
       <p>Analyzer not active on this page.</p>
       <button id="retry-button">Retry Connection</button>
@@ -336,6 +341,36 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logs-link').addEventListener('click', (e) => {
     e.preventDefault();
     chrome.runtime.sendMessage({ action: 'openLogsPage' });
+  });
+
+  // Download History Button
+  downloadHistoryButton.addEventListener('click', () => {
+    showStatusMessage('Preparing download...', 'info');
+    downloadHistoryButton.disabled = true;
+    downloadHistoryButton.textContent = 'Working...';
+
+    sendMessageToContentScript(
+      {
+        action: 'request_chat_history',
+        format: formatSelect.value
+      },
+      (response) => {
+        // The content script will send the data to the background script,
+        // so we just need to know if the request was received.
+        if (response && response.success) {
+          showStatusMessage('History sent to background for download.', 'success');
+        } else {
+          showStatusMessage(`Failed to get history: ${response?.error || 'Unknown error'}`, 'error');
+        }
+        downloadHistoryButton.disabled = false;
+        downloadHistoryButton.textContent = 'Download';
+      },
+      (error) => {
+        showStatusMessage(`Error communicating with page: ${error.message}`, 'error');
+        downloadHistoryButton.disabled = false;
+        downloadHistoryButton.textContent = 'Download';
+      }
+    );
   });
 
   // Clear interval when popup is closed or becomes inactive
